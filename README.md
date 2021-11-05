@@ -12,5 +12,5 @@ Basically, just apply it to an object such as a cube.
 If you want to apply the shader to multiple objects, create as many materials as there are objects, and apply the shader to all of them.
 (Using the same material may not render properly.)  
   
-Directional Lightの方向をシェーダー内で使用しています。  
+このシェーダーはDirectional Lightの方向を使用しています。  
 This shader uses the directional light direction.
