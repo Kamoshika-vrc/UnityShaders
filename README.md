@@ -1,6 +1,6 @@
 # UnityShaders
-趣味で書いたUnityのシェーダーです。  
-Shaders for Unity I wrote as a hobby.
+Unityのシェーダーです。  
+Shaders for Unity I wrote.
   
 Shader Fes 2021で出展中です。  
 These shaders are now on display at Shader Fes 2021.  
