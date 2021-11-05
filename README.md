@@ -1,5 +1,5 @@
 # UnityShaders
-Unityのシェーダーです。  
+個人で制作したUnityのシェーダーです。  
 Shaders for Unity I wrote.
   
 Shader Fes 2021で出展中です。  
