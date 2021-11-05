@@ -1,6 +1,10 @@
 # UnityShaders
 趣味で書いたUnityのシェーダーです。  
 Shaders for Unity I wrote as a hobby.
+  
+Shader Fes 2021で出展中です。  
+These shaders are now on display at Shader Fes 2021.  
+https://sites.google.com/view/shaderfes
 
 ## 使い方(How to use)
 基本的にキューブなどの適当なオブジェクトに適用すればOKです。  
