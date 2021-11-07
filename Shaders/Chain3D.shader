@@ -1,10 +1,14 @@
-﻿// Original Shader by Kamoshika:
+// Original Shader by Kamoshika:
 // https://neort.io/art/c0eqkfk3p9f30ks5b59g
 Shader "Kamoshika/Chain3D"
 {
     Properties
     {
         _scale ("Scale", float) = 1.0 // スケール
+        _iteration ("Ray Marching Iteration", Range (1, 100)) = 70 // Ray Marchingのループ回数
+        _h ("Hue(Color)", Range (0.0, 1.0)) = 0.0 // 色相(HSVのH)
+        _s ("Saturation(Color)", Range (0.0, 1.0)) = 0.8 // 彩度(HSVのS)
+        _v ("Value(Color)", Range (0.0, 1.0)) = 1.0 // 明度(HSVのV)
         _fogDensity ("Fog Density", float) = 0.2 // 霧の密度
     }
 
@@ -49,9 +53,14 @@ Shader "Kamoshika/Chain3D"
             }
 
             float _scale;
+            int _iteration;
+            float _h;
+            float _s;
+            float _v;
             float _fogDensity;
 
-            float3 hsv2rgb(float h, float s, float v) { // HSV色をRGB色に変換
+             // HSV色をRGB色に変換
+            float3 hsv2rgb(float h, float s, float v) {
                 float4 a = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
                 float3 p = abs(frac(h + a.xyz) * 6.0 - a.w);
                 return v * lerp(a.x, saturate(p - a.x), s);
@@ -102,29 +111,29 @@ Shader "Kamoshika/Chain3D"
                 float v = 1.0;
     
                 if(sdTorus(p) < th) {
-                    h = 1.0 / 6.0;
-                    s = 0.8;
-                    v = 1.0;
+                    h = _h + 1.0 / 6.0;
+                    s = _s;
+                    v = _v;
                 } else if(sdTorus(p + float3(-0.5, -0.5, -0.5)) < th) {
-                    h = 2.0 / 6.0;
-                    s = 0.8;
-                    v = 1.0;
+                    h = _h + 2.0 / 6.0;
+                    s = _s;
+                    v = _v;
                 } else if(sdTorus(p.xzy + float3(0, -0.5, -0.5)) < th) {
-                    h = 3.0 / 6.0;
-                    s = 0.8;
-                    v = 1.0;
+                    h = _h + 3.0 / 6.0;
+                    s = _s;
+                    v = _v;
                 } else if(sdTorus(p.yxz + float3(0, 0, -0.5)) < th) {
-                    h = 4.0 / 6.0;
-                    s = 0.8;
-                    v = 1.0;
+                    h = _h + 4.0 / 6.0;
+                    s = _s;
+                    v = _v;
                 } else if(sdTorus(p.xzy + float3(-0.5, 0, 0)) < th) {
-                    h = 5.0 / 6.0;
-                    s = 0.8;
-                    v = 1.0;
+                    h = _h + 5.0 / 6.0;
+                    s = _s;
+                    v = _v;
                 } else if(sdTorus(p.yxz + float3(-0.5, -0.5, 0)) < th) {
-                    h = 6.0 / 6.0;
-                    s = 0.8;
-                    v = 1.0;
+                    h = _h + 6.0 / 6.0;
+                    s = _s;
+                    v = _v;
                 }
 
                 col = hsv2rgb(h, s, v);
@@ -141,29 +150,31 @@ Shader "Kamoshika/Chain3D"
                 float t = 0;
                 float3 rp = ro; // レイの座標
 
+                float sign_normal = 1;
                 d = distFunc(rp);
-                if(d > 0.0001){ // オブジェクトの外側ならレイマーチングをする
-                    [unroll]
-                    for(int i = 0; i < 70; i++) {
-                        d = distFunc(rp);
-                        if(abs(d) < 0.00001 || t > 100 * _scale) {
-                            break;
-                        }
-                        t += d;
-                        rp = ro + rd * t;
+                if(d < 0.0001 * _scale) { // カメラがオブジェクトの内側にある場合、内側を描画するようにする
+                    sign_normal = -1;
+                }
+
+                //[unroll]
+                for(int i = 0; i < _iteration; i++) {
+                    d = sign_normal * distFunc(rp);
+                    if(abs(d) < 0.00001 * _scale || t > 100 * _scale) {
+                        break;
                     }
-                } else { // オブジェクトの内側ならレイをわずかに進めて終了(デプスが0にならないようにするため)
-                    t += 0.0001;
+                    t += d;
                     rp = ro + rd * t;
                 }
 
                 // 色の計算
-                float3 normal = calcNormal(rp); // オブジェクトの法線ベクトルを求める
-                float3 lightDir = _WorldSpaceLightPos0.xyz; // ディレクショナルライトの方向
-                float3 albedo = getColor(rp); // オブジェクトの表面に到達したレイの座標から色を算出
-                float diffuse = max(0.2, dot(normal, lightDir)); // ランバート反射
-                float specular = pow(max(0, dot(reflect(lightDir, normal), rd)), 20); // 鏡面反射
-                col = albedo * diffuse + specular; // 色の合成
+                if(d < 0.01 * _scale) { // レイがある程度オブジェクトの近くに到達している
+                    float3 normal = sign_normal * calcNormal(rp); // オブジェクトの法線ベクトルを求める
+                    float3 lightDir = _WorldSpaceLightPos0.xyz; // ディレクショナルライトの方向
+                    float3 albedo = getColor(rp); // オブジェクトの表面に到達したレイの座標から色を算出
+                    float diffuse = max(0.2, dot(normal, lightDir)); // ランバート反射
+                    float specular = pow(max(0, dot(reflect(lightDir, normal), rd)), 20); // 鏡面反射
+                    col = albedo * diffuse + specular; // 色の合成
+                }
 
                 // フォグ(霧)
                 float fog = exp(-t * t * _fogDensity * _fogDensity / (_scale * _scale));
