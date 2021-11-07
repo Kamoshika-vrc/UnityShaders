@@ -1,10 +1,14 @@
-﻿// Original Shader by Kamoshika:
+// Original Shader by Kamoshika:
 // https://neort.io/art/c415n5c3p9ffolj045v0
 Shader "Kamoshika/TripleGyroid"
 {
     Properties
     {
         _scale ("Scale", float) = 1.0 // スケール
+        _iteration ("Ray Marching Iteration", Range (1, 100)) = 70 // Ray Marchingのループ回数
+        _h ("Hue(Color)", Range (0.0, 1.0)) = 0.0 // 色相(HSVのH)
+        _s ("Saturation(Color)", Range (0.0, 1.0)) = 0.8 // 彩度(HSVのS)
+        _v ("Value(Color)", Range (0.0, 1.0)) = 1.0 // 明度(HSVのV)
         _fogDensity ("Fog Density", float) = 0.02 // 霧の密度
     }
 
@@ -49,7 +53,18 @@ Shader "Kamoshika/TripleGyroid"
             }
 
             float _scale;
+            int _iteration;
+            float _h;
+            float _s;
+            float _v;
             float _fogDensity;
+
+            // HSV色をRGB色に変換
+            float3 hsv2rgb(float h, float s, float v) {
+                float4 a = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+                float3 p = abs(frac(h + a.xyz) * 6.0 - a.w);
+                return v * lerp(a.x, saturate(p - a.x), s);
+            }
 
             float sdGyroid1(float3 p) // ジャイロイドの距離関数1
             {
@@ -92,13 +107,14 @@ Shader "Kamoshika/TripleGyroid"
 
                 p /= _scale;
                 if(sdGyroid1(p) < th) {
-                    col = float3(1.0, 0.1, 0.1);
+                    _h += 0.0 / 3.0;
                 } else if(sdGyroid2(p) < th) {
-                    col = float3(0.1, 1.0, 0.1);
+                    _h += 1.0 / 3.0;
                 } else if(sdGyroid3(p) < th) {
-                    col = float3(0.1, 0.1, 1.0);
+                    _h += 2.0 / 3.0;
                 }
 
+                col = hsv2rgb(_h, _s, _v);
                 return col;
             }
 
@@ -110,26 +126,26 @@ Shader "Kamoshika/TripleGyroid"
 
                 float d = 0;
                 float t = 0;
-                float3 rp = ro; // レイの座標
+                float3 rp = ro; // レイの座標を初期化
                 
+                float sign_normal = 1;
                 d = distFunc(rp);
-                if(d > 0.0001){ // オブジェクトの外側ならレイマーチングをする
-                    [unroll]
-                    for(int i = 0; i < 70; i++) {
-                        d = distFunc(rp);
-                        if(abs(d) < 0.00001 || t > 100 * _scale) {
-                            break;
-                        }
-                        t += d;
-                        rp = ro + rd * t;
+                if(d < 0.0001 * _scale) { // カメラがオブジェクトの内側にある場合、内側を描画するようにする
+                    sign_normal = -1;
+                }
+
+                //[unroll]
+                for(int i = 0; i < _iteration; i++) {
+                    d = sign_normal * distFunc(rp);
+                    if(abs(d) < 0.00001 * _scale || t > 100 * _scale) {
+                        break;
                     }
-                } else { // オブジェクトの内側ならレイをわずかに進めて終了(デプスが0にならないようにするため)
-                    t += 0.0001;
+                    t += d;
                     rp = ro + rd * t;
                 }
 
                 // 色の計算
-                float3 normal = calcNormal(rp); // オブジェクトの法線ベクトルを求める
+                float3 normal = sign_normal * calcNormal(rp); // オブジェクトの法線ベクトルを求める
                 float3 lightDir = _WorldSpaceLightPos0.xyz; // ディレクショナルライトの方向
                 float3 albedo = getColor(rp); // オブジェクトの表面に到達したレイの座標から色を算出
                 float diffuse = max(0.2, dot(normal, lightDir)); // ランバート反射
