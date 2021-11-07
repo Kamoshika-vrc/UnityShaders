@@ -1,12 +1,15 @@
-﻿// Original Shader by Kamoshika:
+// Original Shader by Kamoshika:
 // https://neort.io/art/bta9n2c3p9f8mi6u8u50
 Shader "Kamoshika/DiscoBalls"
 {
     Properties
     {
         _scale ("Scale", float) = 1.0 // スケール
+        _iteration ("Ray Marching Iteration", Range (1, 100)) = 100 // Ray Marchingのループ回数
         _radius ("Radius", Range (0.0, 0.5)) = 0.3 // 球の半径
         _numDiv ("Number of Divisions", int) = 10 // 分割数
+        _s ("Saturation(Color)", Range (0.0, 1.0)) = 0.8 // 彩度(HSVのS)
+        _vCoef ("Value Coef.(Color)", Range (0.0, 1.0)) = 0.1 // 明度(HSVのV)の係数
         _colSpeed ("Color Change Speed", float) = 10.0 // 色が変わる速さ
         _rotSpeed ("Rotation Speed", float) = 1.0 // 回転の速さ
         _fogDensity ("Fog Density", float) = 0.1 // 霧の密度
@@ -58,8 +61,11 @@ Shader "Kamoshika/DiscoBalls"
             }
 
             float _scale;
+            float _iteration;
             float _radius;
             int _numDiv;
+            float _s;
+            float _vCoef;
             float _colSpeed;
             float _rotSpeed;
             float _fogDensity;
@@ -69,7 +75,8 @@ Shader "Kamoshika/DiscoBalls"
                 return lerp(dot(axis, v) * axis, v, cos(a)) - sin(a) * cross(axis, v);
             }
 
-            float3 hsv2rgb(float h, float s, float v) { // HSV色をRGB色に変換
+             // HSV色をRGB色に変換
+            float3 hsv2rgb(float h, float s, float v) {
                 float4 a = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
                 float3 p = abs(frac(h + a.xyz) * 6.0 - a.w);
                 return v * lerp(a.x, saturate(p - a.x), s);
@@ -106,10 +113,9 @@ Shader "Kamoshika/DiscoBalls"
                 uv = abs(uv); // 0 ～ 0.5に折りたたむ
 
                 float h = h2;
-                float s = 0.8;
-                float v = (0.5 - max(uv.x, uv.y)) * 5; // セル内でいい感じに明暗をつける
+                _vCoef *= (0.5 - max(uv.x, uv.y)) * 50; // セル内でいい感じに明暗をつける
                 
-                col = hsv2rgb(h, s, v);
+                col = hsv2rgb(h, _s, _vCoef);
                 return col;
             }
 
@@ -121,26 +127,26 @@ Shader "Kamoshika/DiscoBalls"
 
                 float d = 0;
                 float t = 0;
-                float3 rp = ro; // レイの座標
+                float3 rp = ro; // レイの座標を初期化
 
+                float sign_normal = 1;
                 d = distFunc(rp);
-                if(d > 0.0001){ // オブジェクトの外側ならレイマーチングをする
-                    [unroll]
-                    for(int i = 0; i < 100; i++) {
-                        d = distFunc(rp);
-                        if(abs(d) < 0.00001 || t > 100 * _scale) {
-                            break;
-                        }
-                        t += d;
-                        rp = ro + rd * t;
+                if(d < 0.0001 * _scale) { // カメラがオブジェクトの内側にある場合、内側を描画するようにする
+                    sign_normal = -1;
+                }
+
+                //[unroll]
+                for(int i = 0; i < _iteration; i++) {
+                    d = sign_normal * distFunc(rp);
+                    if(abs(d) < 0.00001 * _scale || t > 100 * _scale) {
+                        break;
                     }
-                } else { // オブジェクトの内側ならレイをわずかに進めて終了(デプスが0にならないようにするため)
-                    t += 0.0001;
+                    t += d;
                     rp = ro + rd * t;
                 }
 
                 // 色の計算
-                float3 normal = normalize(frac(rp / _scale) - 0.5); // 球体の法線ベクトルを求める
+                float3 normal = sign_normal * normalize(frac(rp / _scale) - 0.5); // 球体の法線ベクトルを求める
                 float3 lightDir = _WorldSpaceLightPos0.xyz; // ディレクショナルライトの方向
                 float3 albedo = getColor(rp); // オブジェクトの表面に到達したレイの座標から色を算出
                 float diffuse = max(0.2, dot(normal, lightDir)); // ランバート反射
