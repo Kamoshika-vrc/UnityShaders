@@ -159,10 +159,11 @@ Shader "Kamoshika/SphericalShellsWithNoise"
                     }
 
                     if(i == 0 && rc < ra) { // ループ1回目 & カメラが球体の中にある
+                        int nc = int(rc / delta_ra); // カメラよりも内側にある球殻の枚数 (値は 0 以上 _N 未満 となっている)
                         if(b < 0) { // カメラの前方に球体の表面があるので、そこまでループを飛ばす
-                            i = _N - int(rc / delta_ra) - 1; // int(rc / delta_ra) の値は 0 以上 _N 未満 となっている
+                            i = _N - nc - 1;
                         } else { // カメラの前方に球体の表面はないので、一番近くの裏面までループを飛ばす
-                            i = _N + int(b / delta_ra) - 1;
+                            i = _N + nc - 1;
                         }
                         continue; // 次の球体
                     }
@@ -178,9 +179,11 @@ Shader "Kamoshika/SphericalShellsWithNoise"
                     }
 
                     t = -b - sign_normal * sqrt(D); // 2次方程式の解
-                    if(t <= 0){ // 球体がカメラの後方にある
+
+                    // ループを飛ばす処理によって、球体がカメラの前方にある場合のみ t が計算されるのでここは不要
+                    /*if(t <= 0){ // 球体がカメラの後方にある
                         continue; // 次の球体
-                    }
+                    }*/
 
                     rp = ro + rd * t; // レイを球体まで伸ばす
                     
